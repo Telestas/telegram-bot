@@ -1,0 +1,67 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute tag
+        id: meta
+        run: echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/telegram-bot:${{ steps.meta.outputs.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/telegram-bot:latest
+
+  deploy:
+    needs: build
+    runs-on: tl-havtel-runner
+    env:
+      DEPLOY_DIR: /opt/telegram-bot
+      IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/telegram-bot
+      IMAGE_TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure deploy directory
+        run: |
+          if [ ! -d "$DEPLOY_DIR" ]; then
+            sudo mkdir -p "$DEPLOY_DIR"
+            sudo chown "$USER:$USER" "$DEPLOY_DIR"
+          fi
+
+      - name: Copy compose.yaml
+        run: cp -f compose.yaml "$DEPLOY_DIR/compose.yaml"
+
+      - name: Pull and restart
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          docker compose pull
+          docker compose up -d

@@ -1,0 +1,16 @@
+services:
+  telestas:
+    image: ${IMAGE}:${IMAGE_TAG}
+    build: .
+    container_name: telestas
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      ALLOWED_USERS: ${ALLOWED_USERS:-}
+      DB_PATH: /data/tasks.db
+      TZ: ${TZ:-UTC}
+    volumes:
+      - telestas-data:/data
+
+volumes:
+  telestas-data:
