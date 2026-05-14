@@ -10,7 +10,8 @@ import (
 	"syscall"
 )
 
-const version = "0.1.0"
+// version is overridden at build time via `-ldflags="-X main.version=<tag>"`.
+var version = "dev"
 
 func main() {
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")

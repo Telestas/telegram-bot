@@ -60,21 +60,34 @@ go run .
 ## Releases y deploy automático
 
 El workflow [.github/workflows/release.yml](.github/workflows/release.yml) se
-dispara al hacer push de un tag con formato `vX.Y.Z` y hace dos cosas:
+dispara al hacer push de un tag con formato `vX.Y.Z` y hace:
 
 1. **build** (en `ubuntu-latest`): construye la imagen y la publica en
    Docker Hub como:
    - `<DOCKERHUB_USERNAME>/telegram-bot:<tag>` (ej. `:v0.0.1`)
    - `<DOCKERHUB_USERNAME>/telegram-bot:latest`
+
+   El tag de git se inyecta en el binario como `main.version` vía
+   `-ldflags`, de modo que el comando `/version` del bot reporta exactamente
+   la versión publicada.
 2. **deploy** (en el runner self-hosted `tl-havtel-runner`):
    - crea `/opt/telegram-bot` si no existe,
    - copia / sobrescribe `compose.yaml`,
    - `docker compose pull && docker compose up -d` (toma la imagen recién publicada).
+3. **notificaciones a Telegram** (en `ubuntu-latest`):
+   - `notify-deployed` — al terminar deploy OK, manda "🤖 telegram-bot vX.Y.Z desplegado".
+   - `notify-build-failed` — si el build falla, manda el error con el link al run.
+   - `notify-deploy-failed` — si el deploy falla, manda el error con el link al run.
 
 ### Secretos requeridos en GitHub
 
-- `DOCKERHUB_USERNAME` — usuario de Docker Hub.
-- `DOCKERHUB_TOKEN` — access token de Docker Hub (Account Settings → Security).
+| Secreto | Para qué |
+|---|---|
+| `DOCKERHUB_USERNAME` | Login en Docker Hub y nombre de imagen |
+| `DOCKERHUB_TOKEN` | Access token de Docker Hub (Account Settings → Security) |
+| `TELEGRAM_BOT_TOKEN` | Token del bot que envía las notificaciones de CI (puede ser el mismo bot) |
+| `TELEGRAM_CHAT_ID` | Chat / grupo donde llegan las notificaciones |
+| `TELEGRAM_THREAD_ID` | (opcional) ID del topic si el grupo tiene topics activados; déjalo vacío si no |
 
 ### Pre-requisitos en el runner `tl-havtel-runner`
 

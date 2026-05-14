@@ -35,6 +35,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            VERSION=${{ steps.meta.outputs.tag }}
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/telegram-bot:${{ steps.meta.outputs.tag }}
             ${{ secrets.DOCKERHUB_USERNAME }}/telegram-bot:latest
@@ -64,3 +66,78 @@ jobs:
         run: |
           docker compose pull
           docker compose up -d
+
+  notify-deployed:
+    needs: [build, deploy]
+    if: ${{ needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          TEXT="🤖 telegram-bot <code>${TAG}</code> desplegado"
+          ARGS=(--data-urlencode "chat_id=${TELEGRAM_CHAT_ID}"
+                --data-urlencode "parse_mode=HTML"
+                --data-urlencode "text=${TEXT}")
+          if [ -n "${TELEGRAM_THREAD_ID}" ]; then
+            ARGS+=(--data-urlencode "message_thread_id=${TELEGRAM_THREAD_ID}")
+          fi
+          curl -sS --fail-with-body -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            "${ARGS[@]}"
+
+  notify-build-failed:
+    needs: build
+    if: ${{ needs.build.result == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TEXT="🤖 telegram-bot build <code>${TAG}</code> falló
+          ${RUN_URL}"
+          ARGS=(--data-urlencode "chat_id=${TELEGRAM_CHAT_ID}"
+                --data-urlencode "parse_mode=HTML"
+                --data-urlencode "disable_web_page_preview=true"
+                --data-urlencode "text=${TEXT}")
+          if [ -n "${TELEGRAM_THREAD_ID}" ]; then
+            ARGS+=(--data-urlencode "message_thread_id=${TELEGRAM_THREAD_ID}")
+          fi
+          curl -sS --fail-with-body -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            "${ARGS[@]}"
+
+  notify-deploy-failed:
+    needs: [build, deploy]
+    if: ${{ needs.build.result == 'success' && needs.deploy.result == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+          TAG: ${{ needs.build.outputs.tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TEXT="🤖 telegram-bot deploy <code>${TAG}</code> falló
+          ${RUN_URL}"
+          ARGS=(--data-urlencode "chat_id=${TELEGRAM_CHAT_ID}"
+                --data-urlencode "parse_mode=HTML"
+                --data-urlencode "disable_web_page_preview=true"
+                --data-urlencode "text=${TEXT}")
+          if [ -n "${TELEGRAM_THREAD_ID}" ]; then
+            ARGS+=(--data-urlencode "message_thread_id=${TELEGRAM_THREAD_ID}")
+          fi
+          curl -sS --fail-with-body -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            "${ARGS[@]}"
