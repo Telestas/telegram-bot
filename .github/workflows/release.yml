@@ -53,8 +53,7 @@ jobs:
       - name: Ensure deploy directory
         run: |
           if [ ! -d "$DEPLOY_DIR" ]; then
-            sudo mkdir -p "$DEPLOY_DIR"
-            sudo chown "$USER:$USER" "$DEPLOY_DIR"
+            mkdir -p "$DEPLOY_DIR"
           fi
 
       - name: Copy compose.yaml
